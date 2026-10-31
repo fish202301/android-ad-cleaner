@@ -279,18 +279,30 @@ class Phone:
             self.settle(b, 0.6)
 
     def confirm(self):
-        """开关后弹确认框就点确认类按钮。只认真按钮（Button 类），
-        ColorOS 开关旁边的「开启/关闭」状态文字不算——点了会把开关又拨回去。"""
+        """开关后弹确认框就点确认类按钮。优先只认真按钮（Button 类），
+        ColorOS 开关旁边的「开启/关闭」状态文字不算——点了会把开关又拨回去。
+        找不到 Button 再退一步：MIUI/HyperOS 的弹窗按钮常是可点击的 TextView
+        （小米 17 热搜榜单「确认关闭」实测），按「可点击 + 按钮级尺寸」兜底，
+        整行的状态文字（不可点击）不会命中。"""
         time.sleep(0.2)
         root = self.tree()
-        for c in CONFIRM:
-            for n in root.iter("node"):
-                if (n.get("text") or "").strip() == c and "Button" in (n.get("class") or ""):
+        for strict in (True, False):
+            for c in CONFIRM:
+                for n in root.iter("node"):
+                    if (n.get("text") or "").strip() != c:
+                        continue
+                    if strict and "Button" not in (n.get("class") or ""):
+                        continue
+                    if not strict and n.get("clickable") != "true":
+                        continue
                     l, t, r, b = bounds(n)
-                    if r > l and b > t:
-                        self.click((l + r) // 2, (t + b) // 2)
-                        time.sleep(0.3)
-                        return c
+                    if r <= l or b <= t:
+                        continue
+                    if not strict and (r - l > self.W * 0.5 or b - t > self.H * 0.12):
+                        continue                     # 太大，不像弹窗按钮，怕误点整行
+                    self.click((l + r) // 2, (t + b) // 2)
+                    time.sleep(0.3)
+                    return c
         return None
 
     def off(self, keep=(), only=None, page="", max_screens=40):
